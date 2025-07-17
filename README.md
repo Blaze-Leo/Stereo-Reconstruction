@@ -1,2 +1,3 @@
 # Depth-Reconstruction
-Estimates the depth of an image (currently uses a trained model for single image depth estimation, we wish to change it to stereo models) and uses that to create a 3d object of the image.
+
+Divides the image into textures on assumption that same coloured parts that are adjacent together are flat object faces. Then caluculates the distance from the original pixel to the other stereo image and displays creates a disparity map that can be used to create a 3d model. Pretty good accuracy, but can be made far better if not bound the run time cost. Optimization could be done, but won't change the runtime drastically.
