@@ -96,7 +96,7 @@ the shifted mask on the right image would be the best matching texture.
 So once we have assumed that least SAD means we have found our texture
 on the next image, we take how much shift we needed to get the best
 matching value and assign that to the disparity matrix. The disparity
-values is now tightly bound by $disp \in [0, \text{max\_disp}]$ and
+values is now tightly bound by $disp \in [0, \text{max disp}]$ and
 $disp \in \mathbb{Z}$
 
 Input Needed -> Left image $I_l$, Right image $I_r$, Calibration data $\mathcal{C}$
@@ -155,7 +155,7 @@ $\mathcal{M}(V,F)$ with vertices $V$ and faces $F$
 
 Algorithm -> Deduplicate points: $V \gets \{\mathbf{v}_k\} \subseteq \mathcal{P}$
 where $\|\mathbf{v}_k - \mathbf{v}_l\| > \epsilon$ Construct 2D grid
-topology: $(h,w) \gets \text{infer\_grid\_dimensions}(V)$ Initialize
+topology: $(h,w) \gets \text{infer grid dimensions}(V)$ Initialize
 face set: $F \gets \emptyset$
 
 Define candidate vertices:
