@@ -1,9 +1,11 @@
----
-author:
-- Anurag Gupta
-date: 1970-01-01
-title: Stereo Depth Reconstruction
----
+```text
+ ____  __      __    ____  ____ 
+(  _ \(  )    /__\  (_   )( ___)
+ ) _ < )(__  /(__)\  / /_  )__) 
+(____/(____)(__)(__)(____)(____)
+
+```
+
 # Report
 
 ## Theory
