@@ -202,7 +202,7 @@ Future work could explore:
 -   Adaptive thresholding schemes during post-processing
 
 ## Sample Outputs
-\
+
 ![Storage](./Report/storage.png)Storage
 
 ![Shelves](./Report/shelves.png)Shelves
