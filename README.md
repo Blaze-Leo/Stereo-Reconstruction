@@ -202,11 +202,11 @@ Future work could explore:
 -   Adaptive thresholding schemes during post-processing
 
 ## Sample Outputs
+\
+![Storage](./Report/storage.png)Storage
 
-![Storage](storage.png)Storage
+![Shelves](./Report/shelves.png)Shelves
 
-![Shelves](shelves.png)Shelves
+![Recycle](./Report/recycle.png)Recycle
 
-![Recycle](recycle.png)Recycle
-
-![Piano](piano.png)Piano
+![Piano](./Report/piano.png)Piano
