@@ -1,4 +1,5 @@
-\documentclass{article}
+\documentclass[12pt]{article}
+\usepackage{multicol}
 \usepackage[utf8]{inputenc}
 \usepackage{graphicx}
 \usepackage{hyperref}
@@ -13,10 +14,15 @@
 \usepackage{graphicx} 
 \usepackage{caption}  
 \usepackage{lipsum} 
+\usepackage{titlesec}
 
-% \usepackage{xcolor}
-% \pagecolor[rgb]{0.1,0.1,0.1}
-% \color[rgb]{0.9,0.9,0.9}
+\usepackage{xcolor}
+\pagecolor[rgb]{0.1,0.1,0.1}
+\color[rgb]{0.9,0.9,0.9}
+
+\titlespacing*{\section}{0pt}{1ex}{0.5ex}      % {left}{before}{after}[right]
+\titlespacing*{\subsection}{0pt}{0.5ex}{0.25ex}  % Smaller gaps for subsections
+
 
 \geometry{a4paper, margin=1in}
 
@@ -28,11 +34,11 @@
 
 \maketitle
 
-\vspace{1cm}
+\begin{multicols}{2}
 
 \section{Theory}
 
-\medskip
+
 For stereo vision we need two pictures taken side by side and the camera details. This will helps us estimate the depth of the surfaces in the image.
 First we caclculate how much a pixel has shifted from the first picture to the second picture. This will help us identify the shift of pixels 
 with relation to other pixels. Thus giving us a map called the disparity map which is just the array of pixel shifts. From the calibration data of 
@@ -51,7 +57,7 @@ where:
     \item $d_{offs}$: Disparity offset 
 \end{itemize}
 
-\vspace{1cm}
+
 
 \section{Dataset}
 \bigskip
@@ -62,11 +68,11 @@ like focal length, number of pixels, baseline, disparity offset, etc \ldots
 There are 33 image sets out of which 23 have ground truths publicly available and we will be showing some sample outputs using various threshold. Since computation takes a little long 
 for generating disparity over all the images, we will be using 0.5 times the original resolution for sample outputs.
 
-\newpage
+
 \section{Algorithmic Pipeline}
-\vspace{1cm}
+
 \subsection{Texture Segmentation}
-\vspace{1cm}
+
 We suggest that pixels with same colour intensity on a 2D imag would make a flat surface in the original 3D environment. This is due to the fact that shading causes intensity to 
 differ based on the depth of the object relative to the source of the light. So we assume that shading is relatively correct in the image and start partitioning the image into 
 multiple segments with colour intensity within a threshold amount from the original starting pixel. 
@@ -75,7 +81,7 @@ We use the basic BFS style finding mechanism also called Flood-Fill algorithm to
 continuation is not allowed for computation benefit. The origin pixels are choosen randomly. The top, left, bottom, and right pixels of the original pixel are considered 
 the only valid neighbours while searching. Each region is called a texture. Each texture gets a different number assigned to it and we also maintain a dictionary with the texture numbers
 as key and the list of points masked by that texture as the value.
-\medskip
+
 \begin{algorithm}[H]
 \caption{Flood-Fill (BFS) Texture Segmentation}
 \begin{algorithmic}[1]
@@ -106,9 +112,9 @@ as key and the list of points masked by that texture as the value.
 \end{algorithmic}
 \end{algorithm}
 
-\newpage
+
 \subsection{Disparity Estimation}
-\vspace{1cm}
+
 We use the left iamge as our original image. For every texture we first get the list of points masked by that texture. Using the search distance received as input
 we create a list of masks. Each mask being a k pixels away from the original mask where k ranges from 0 to maximum search distance. We assume that since the picture was
 right side image was taken by a camera from the right side of the original camera it is obvious that the objects in the original image will be found to the left of 
@@ -118,7 +124,7 @@ Using this analogy we search for pixels on the left side within a maximumsearch 
 mask on the left image and the shifted mask on the right image would be the best matching texture. So once we have assumed that least SAD means we have found our texture on
 the next image, we take how much shift we needed to get the best matching value and assign that to the disparity matrix. The disparity values is now tightly 
 bound by $disp \in [0, \text{max\_disp}]$ and $disp \in \mathbb{Z}$
-\medskip
+
 \begin{algorithm}[H]
 \caption{Texture-Constrained Disparity Search}
 \begin{algorithmic}[1]
@@ -145,15 +151,15 @@ bound by $disp \in [0, \text{max\_disp}]$ and $disp \in \mathbb{Z}$
     \item Natural noise reduction within homogeneous regions
 \end{itemize}
 
-\newpage
+
 \subsection{Post-Processing}
-\vspace{1cm}
+
 When we estimated the disparity we used very constrained threshold to create as many textures possible but has led to a slightly noisy and very grainy disparity matrix.
 To create a gradient like effect on the disparity matrix we will create texture of higher thresholds. Then take the disparities in that texture mask and compute the median value.
 Then if any value is more that the threshold amound from the median value we replace the out of range value with the median value. The post processing mechanism can be 
 applied multiple times to achieve good results.
 
-\medskip
+
 \begin{algorithm}[H]
 \caption{Loose Texture based Disparity Refinement}
 \begin{algorithmic}[1]
@@ -171,17 +177,17 @@ applied multiple times to achieve good results.
 \end{algorithmic}
 \end{algorithm}
 
-\newpage
+
 \section{Implementation Details}
-\vspace{1cm}
+
 \subsection{Mesh Generation}
-\vspace{1cm}
+
 We are also given the camera details in the dataset and thus we can use formula (1) to generate the depth of each pixel with respect to their disparity values. This will create a point
 cloud of points in 3D. Given the computed 3D point cloud $\mathcal{P} = \{\mathbf{p}_i\} {i=1}^N$ where $\mathbf{p}_i = (x_i, y_i, z_i, r_i, g_i, b_i)$, we initiate the mesh reconstruction.
 For every vertexx we compute the distance between it and its neighbours, if the distance falls within a given threshold we create a triangle face between them. For colouring the faces
 we use the average colour of the corresponding vertices loaded from the original rgb file of the image.
 
-\medskip
+
 \begin{algorithm}[H]
 \caption{Point Cloud to Mesh Conversion}
 \begin{algorithmic}[1]
@@ -212,24 +218,24 @@ The Open3D library handles the final mesh export in binary PLY format, combining
 \begin{equation}
     \mathcal{M} = \underbrace{\{\mathbf{v}_i\}}_{V} \cup \underbrace{\{(r_i,g_i,b_i)\}}_{\text{colors}} \cup \underbrace{\{(i,j,k)\}}_{F}
 \end{equation}
-\vspace{1cm}
+
 \subsection{Parameters}
-\vspace{1cm}
+
 \begin{table}[h]
 \centering
 \begin{tabular}{|l|l|l|}
 \hline
-\textbf{Parameter} & \textbf{Value} & \textbf{Rationale} \\ \hline
-Initial Texture Threshold & 20 & Balances detail vs Over-Segmentation \\ \hline
-Post-Process Threshold & 100 & Gradient Disparity vs Grainy and Noisy \\ \hline
-Post-process Iterations & 4 & Observed Best Value \\ \hline
-Mesh Face Threshold & 150px & Prevents distant points from creating faces \\ \hline
+\textbf{Threshold} & \textbf{Value} & \textbf{Rationale} \\ \hline
+Initial Texture & 20 & Balances detai \\ \hline
+Post-Process & 100 & Gradient Disparity \\ \hline
+Post-process & 4 & Observed Best \\ \hline
+Mesh Face & 150px & PPoint Generation \\ \hline
 \end{tabular}
 \end{table}
 
-\newpage
+
 \section{Conclusion}
-\vspace{1cm}
+
 The proposed pipeline demonstrates that texture-constrained disparity estimation combined with constrained texture post-processing yields superior results compared to traditional methods
 like comparing pixel by pixel. The most importat part is matching object from the left image to the right image perfectly. This algorithm's assumption of similar colours seems to be
 on the right path.
@@ -243,18 +249,20 @@ Future work could explore:
     \item Adaptive thresholding schemes during post-processing
 \end{itemize}
 
+\end{multicols}
+
 \newpage
 % \section{Sample Output}
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.75\textwidth]{storage.png} % Adjust width and filename
+    \includegraphics[width=0.74\textwidth]{storage.png} % Adjust width and filename
     \caption*{Storage} % Optional caption
 \end{figure}
 \vspace{3cm}
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.75\textwidth]{shelves.png} % Adjust width and filename
+    \includegraphics[width=0.74\textwidth]{shelves.png} % Adjust width and filename
     \caption*{Shelves} % Optional caption
 \end{figure}
 
