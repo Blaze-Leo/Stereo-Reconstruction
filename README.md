@@ -168,30 +168,23 @@ $F \gets F \cup \{(v_2,v_4,v_3)\}$
 
 Compute vertex normals
 
-$$
-\mathbf{n}_k \gets \frac{1}{|N(k)|}\sum_{j\in N(k)}(\mathbf{v}_j - \mathbf{v}_k)
-$$
+n_k = (1 / |N(k)|) * Σ_{j ∈ N(k)} (v_j - v_k)
 
-Export $\mathcal{M}(V,F)$ as PLY file with vertex colors.
+Export M(V, F) as PLY file with vertex colors.
 
 The Open3D library handles the final mesh export in binary PLY format, combining:
 
-$$
-\mathcal{M} = 
-\underbrace{\{\mathbf{v}_i\}}_{V} \cup 
-\underbrace{\{(r_i,g_i,b_i)\}}_{\text{colors}} \cup 
-\underbrace{\{(i,j,k)\}}_{F}
-$$
+M = {v_i} ∪ {(r_i, g_i, b_i)} ∪ {(i, j, k)}
 
 ### Parameters
 
 
   --------------------------- ----------- ---------------------------------------------
 
-Initial Texture Threshold   20 \
-Post-Process Threshold      100 \
-Post-process Iterations     4 \
-Mesh Face Threshold         150px
+Initial Texture Threshold -->  20 \
+Post-Process Threshold    -->  100 \
+Post-process Iterations   -->  4 \
+Mesh Face Threshold       -->  150px
 
 ## Conclusion
 
