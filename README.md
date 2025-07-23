@@ -172,17 +172,17 @@ Export $\mathcal{M}(V,F)$ as PLY file with vertex colors
 
 The Open3D library handles the final mesh export in binary PLY format,
 combining:
-$$\mathcal{M} = \underbrace{\{\mathbf{v}_i\}}_{V} \cup \underbrace{\{(r_i,g_i,b_i)\}}_{\text{colors}} \cup \underbrace{\{(i,j,k)\}}_{F}$$
+$\mathcal{M} = \underbrace{\{\mathbf{v}_i\}}_{V} \cup \underbrace{\{(r_i,g_i,b_i)\}}_{\text{colors}} \cup \underbrace{\{(i,j,k)\}}_{F}$
 
 ### Parameters
 
 
   --------------------------- ----------- ---------------------------------------------
 
-Initial Texture Threshold   20
-Post-Process Threshold      100
-Post-process Iterations     4
-Mesh Face Threshold         150px
+Initial Texture Threshold   20 \
+Post-Process Threshold      100 \
+Post-process Iterations     4 \
+Mesh Face Threshold         150px \
 
 ## Conclusion
 
