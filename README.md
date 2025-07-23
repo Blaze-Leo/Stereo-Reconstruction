@@ -176,12 +176,13 @@ $$\mathcal{M} = \underbrace{\{\mathbf{v}_i\}}_{V} \cup \underbrace{\{(r_i,g_i,b_
 
 ### Parameters
 
-  **Parameter**               **Value**   **Rationale**
+
   --------------------------- ----------- ---------------------------------------------
-  Initial Texture Threshold   20          Balances detail vs Over-Segmentation
-  Post-Process Threshold      100         Gradient Disparity vs Grainy and Noisy
-  Post-process Iterations     4           Observed Best Value
-  Mesh Face Threshold         150px       Prevents distant points from creating faces
+
+Initial Texture Threshold   20
+Post-Process Threshold      100
+Post-process Iterations     4
+Mesh Face Threshold         150px
 
 ## Conclusion
 
