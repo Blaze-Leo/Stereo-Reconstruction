@@ -166,13 +166,22 @@ $\quad v_1 \gets V[i,j],\ v_2 \gets V[i,j+1],\ v_3 \gets V[i+1,j],\ v_4 \gets V[
 Add triangle $F \gets F \cup \{(v_1,v_2,v_3)\}$ Add triangle
 $F \gets F \cup \{(v_2,v_4,v_3)\}$
 
-Compute vertex normals:
-$\mathbf{n}_k \gets \frac{1}{|N(k)|}\sum_{j\in N(k)}(\mathbf{v}_j - \mathbf{v}_k)$
-Export $\mathcal{M}(V,F)$ as PLY file with vertex colors
+Compute vertex normals
 
-The Open3D library handles the final mesh export in binary PLY format,
-combining:
-$\mathcal{M} = \underbrace{\{\mathbf{v}_i\}}_{V} \cup \underbrace{\{(r_i,g_i,b_i)\}}_{\text{colors}} \cup \underbrace{\{(i,j,k)\}}_{F}$
+$$
+\mathbf{n}_k \gets \frac{1}{|N(k)|}\sum_{j\in N(k)}(\mathbf{v}_j - \mathbf{v}_k)
+$$
+
+Export $\mathcal{M}(V,F)$ as PLY file with vertex colors.
+
+The Open3D library handles the final mesh export in binary PLY format, combining:
+
+$$
+\mathcal{M} = 
+\underbrace{\{\mathbf{v}_i\}}_{V} \cup 
+\underbrace{\{(r_i,g_i,b_i)\}}_{\text{colors}} \cup 
+\underbrace{\{(i,j,k)\}}_{F}
+$$
 
 ### Parameters
 
@@ -182,7 +191,7 @@ $\mathcal{M} = \underbrace{\{\mathbf{v}_i\}}_{V} \cup \underbrace{\{(r_i,g_i,b_i
 Initial Texture Threshold   20 \
 Post-Process Threshold      100 \
 Post-process Iterations     4 \
-Mesh Face Threshold         150px \
+Mesh Face Threshold         150px
 
 ## Conclusion
 
