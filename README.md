@@ -5,9 +5,9 @@
 (____/ (____) (__)(__) (____) (____)
 
 ```
+# [Not Upto Date]
 
 # Stereo Depth Reconstruction
-
 ## Theory
 
 For stereo vision we need two pictures taken side by side and the camera
