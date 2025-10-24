@@ -5,213 +5,295 @@
 (____/ (____) (__)(__) (____) (____)
 
 ```
-# [Not Upto Date]
-
-# Stereo Depth Reconstruction
-## Theory
-
-For stereo vision we need two pictures taken side by side and the camera
-details. This will helps us estimate the depth of the surfaces in the
-image. First we caclculate how much a pixel has shifted from the first
-picture to the second picture. This will help us identify the shift of
-pixels with relation to other pixels. Thus giving us a map called the
-disparity map which is just the array of pixel shifts. From the
-calibration data of the cameras we can get some information that will
-estimate the metric depth of a surface thus allowing us to create a 3D
-object.
-
-The relationship between disparity ($d$) and depth ($Z$) is defined as
-follows:
-
-$$Z = \frac{f \cdot B}{d + d_{offs}}$$
-
-where:
-
--   $f$: Focal length in pixels
-
--   $B$: Baseline distance between cameras
-
--   $d_{offs}$: Disparity offset
-
-## Dataset
-
-We have used the Middlebury 2014 dataset for stero depth images. It
-includes two images, one taken from the left camera labelled as
-'im0.png' and one from the right camera labelled 'im1.png'. There is the
-ground truth disparity images labelled as 'disp0.pfm' and 'disp1.pfm'
-respectively. There is also a file called 'calib.txt' which contains the
-camera information like focal length, number of pixels, baseline,
-disparity offset, etc ...
-
-There are 33 image sets out of which 23 have ground truths publicly
-available and we will be showing some sample outputs using various
-threshold. Since computation takes a little long for generating
-disparity over all the images, we will be using 0.5 times the original
-resolution for sample outputs.
-
-## Algorithmic Pipeline
-
-### Texture Segmentation
-
-We suggest that pixels with same colour intensity on a 2D imag would
-make a flat surface in the original 3D environment. This is due to the
-fact that shading causes intensity to differ based on the depth of the
-object relative to the source of the light. So we assume that shading is
-relatively correct in the image and start partitioning the image into
-multiple segments with colour intensity within a threshold amount from
-the original starting pixel.
-
-We use the basic BFS style finding mechanism also called Flood-Fill
-algorithm to locate pixels that have valid colour intensity. Overwriting
-a region by a different segment's continuation is not allowed for
-computation benefit. The origin pixels are choosen randomly. The top,
-left, bottom, and right pixels of the original pixel are considered the
-only valid neighbours while searching. Each region is called a texture.
-Each texture gets a different number assigned to it and we also maintain
-a dictionary with the texture numbers as key and the list of points
-masked by that texture as the value.
-
-Input Needed -> Grayscale image $I$, Intensity threshold $\tau$ Texture labels $T$,
-Region dictionary $\mathcal{D}$
-
-Algorithm -> Initialize $T \gets \mathbf{0}_{h\times w}$, $label \gets 1$
-$\mathcal{D}[label] \gets \emptyset$ $stack.push((x,y))$
-$I_{seed} \gets I(x,y)$ $(cx,cy) \gets stack.pop()$
-$T(cx,cy) \gets label$ $\mathcal{D}[label].add((cx,cy))$
-$stack.push((nx,ny))$ $label \gets label + 1$
-
-### Disparity Estimation
-
-We use the left iamge as our original image. For every texture we first
-get the list of points masked by that texture. Using the search distance
-received as input we create a list of masks. Each mask being a k pixels
-away from the original mask where k ranges from 0 to maximum search
-distance. We assume that since the picture was right side image was
-taken by a camera from the right side of the original camera it is
-obvious that the objects in the original image will be found to the left
-of their original position the right image.
-
-Using this analogy we search for pixels on the left side within a
-maximumsearch range. For comparison we say that the least SAD (Sum of
-Absolute Differences) between the original mask on the left image and
-the shifted mask on the right image would be the best matching texture.
-So once we have assumed that least SAD means we have found our texture
-on the next image, we take how much shift we needed to get the best
-matching value and assign that to the disparity matrix. The disparity
-values is now tightly bound by $disp \in [0, \text{max disp}]$ and
-$disp \in \mathbb{Z}$
-
-Input Needed -> Left image $I_l$, Right image $I_r$, Calibration data $\mathcal{C}$
-Disparity map $D$
-
-Algorithm -> Segment $I_l$ into texture regions $\mathcal{R} = \{R_1 \cdots R_n\}$
-via Algorithm 2 Extract representative pixel $(x_0,y_0) \in R_i$ Compute
-SAD cost: $C(d) \gets \sum_{(x,y)\in R_i} |I_l(x,y) - I_r(x-d,y)|$ Track
-$d^* \gets \arg\min_d C(d)$ Assign $D(x,y) \gets d^*$ for all
-$(x,y) \in R_i$
-
-**Advantages over correlation:**
-
--   3.2$\times$ faster computation
-
--   Better preservation of texture boundaries
-
--   Natural noise reduction within homogeneous regions
-
-### Post-Processing
-
-When we estimated the disparity we used very constrained threshold to
-create as many textures possible but has led to a slightly noisy and
-very grainy disparity matrix. To create a gradient like effect on the
-disparity matrix we will create texture of higher thresholds. Then take
-the disparities in that texture mask and compute the median value. Then
-if any value is more that the threshold amound from the median value we
-replace the out of range value with the median value. The post
-processing mechanism can be applied multiple times to achieve good
-results.
-
-Input Needed -> Raw disparity $D$, Original image $I$, Iterations $N$ Refined disparity
-$\hat{D}$
-
-Algorithm -> Segment $I$ with relaxed threshold ($\tau_k \gets 20 \times k$) Compute
-median disparity $\tilde{d}_j \gets \mathrm{median}(D(S_j))$ Reject
-outliers where $|D(p) - \tilde{d}_j| > 0.07\tilde{d}_j$ 
-
-## Implementation Details
-
-### Mesh Generation
-
-We are also given the camera details in the dataset and thus we can use
-formula (1) to generate the depth of each pixel with respect to their
-disparity values. This will create a point cloud of points in 3D. Given
-the computed 3D point cloud $\mathcal{P} = \{\mathbf{p}_i\} {i=1}^N$
-where $\mathbf{p}_i = (x_i, y_i, z_i, r_i, g_i, b_i)$, we initiate the
-mesh reconstruction. For every vertexx we compute the distance between
-it and its neighbours, if the distance falls within a given threshold we
-create a triangle face between them. For colouring the faces we use the
-average colour of the corresponding vertices loaded from the original
-rgb file of the image.
-
-Input Needed -> Point cloud $\mathcal{P}$, distance threshold $\tau$ 3D mesh
-$\mathcal{M}(V,F)$ with vertices $V$ and faces $F$
-
-Algorithm -> Deduplicate points: $V \gets \{\mathbf{v}_k\} \subseteq \mathcal{P}$
-where $\|\mathbf{v}_k - \mathbf{v}_l\| > \epsilon$ Construct 2D grid
-topology: $(h,w) \gets \text{infer grid dimensions}(V)$ Initialize
-face set: $F \gets \emptyset$
-
-Define candidate vertices:
-$\quad v_1 \gets V[i,j],\ v_2 \gets V[i,j+1],\ v_3 \gets V[i+1,j],\ v_4 \gets V[i+1,j+1]$
-
-Add triangle $F \gets F \cup \{(v_1,v_2,v_3)\}$ Add triangle
-$F \gets F \cup \{(v_2,v_4,v_3)\}$
-
-Compute vertex normals
-
-n_k = (1 / |N(k)|) * Σ_{j ∈ N(k)} (v_j - v_k)
-
-Export M(V, F) as PLY file with vertex colors.
-
-The Open3D library handles the final mesh export in binary PLY format, combining:
-
-M = {v_i} ∪ {(r_i, g_i, b_i)} ∪ {(i, j, k)}
-
-### Parameters
 
 
-  --------------------------- ----------- ---------------------------------------------
+---
 
-Initial Texture Threshold -->  20 \
-Post-Process Threshold    -->  100 \
-Post-process Iterations   -->  4 \
-Mesh Face Threshold       -->  150px
+# Stereo Depth Reconstruction Pipeline System Architecture
 
-## Conclusion
+**Author:** Blaze
+**Date:** *25 Oct 2025*
 
-The proposed pipeline demonstrates that texture-constrained disparity
-estimation combined with constrained texture post-processing yields
-superior results compared to traditional methods like comparing pixel by
-pixel. The most importat part is matching object from the left image to
-the right image perfectly. This algorithm's assumption of similar
-colours seems to be on the right path.
+---
 
-Future work could explore:
+## Abstract
 
--   GPU acceleration for real-time performance on disparity matrix
-    calculation
+This technical document provides a comprehensive description of a stereo matching pipeline system architecture. The system implements a complete workflow from web-based data acquisition to trained neural network models for disparity estimation. The pipeline is organized into four modular components with well-defined interfaces and data flow. Each module handles specific responsibilities including data collection, preprocessing, feature extraction, and model training.
 
--   Texture segmentation over RGB data instead of gray image
+---
 
--   Deep learning-based texture segmentation
+## 1. System Architecture Overview
 
--   Adaptive thresholding schemes during post-processing
+The stereo matching pipeline is designed as a sequential processing system with four interconnected modules. The architecture follows a data-flow pattern where each module consumes the output of the previous module and produces input for the next.
 
-## Sample Outputs
+---
 
-![Storage](./Report/storage.png)Storage
+## 2. Module 1: Data Acquisition System
 
-![Shelves](./Report/shelves.png)Shelves
+### 2.1 Module Purpose and Scope
 
-![Recycle](./Report/recycle.png)Recycle
+The data acquisition module is responsible for automatically retrieving the **Middlebury 2014 stereo dataset** from the official web repository. It handles web scraping, file discovery, directory structure generation, and robust download management.
 
-![Piano](./Report/piano.png)Piano
+### 2.2 Core Algorithm Implementation
+
+#### Algorithm: Data Acquisition Main Workflow
+
+```text
+Procedure AcquireDataset(base_url, download_path)
+    Initialize web session with browser headers
+    ScanForZipFiles(base_url)
+    FilterDatasets(file_list, exclude_keywords)
+    GenerateSiteStructure(dataset_list)
+    For each dataset in dataset_list:
+        DownloadCoreFiles(dataset_url, download_path)
+        DownloadExposureVariants(dataset_url, download_path)
+    Return VerifyDownloads(download_path)
+```
+
+### 2.3 Key Component Details
+
+#### (a) Web Scraping Engine – File Discovery Algorithm
+
+```text
+Function FindDownloadables(url, extensions, filenames)
+    response ← HTTP_GET(url)
+    soup ← BeautifulSoup(response.content)
+    downloadables ← []
+    For each anchor in soup:
+        href ← extract href attribute
+        If href valid:
+            absolute_url ← urljoin(base_url, href)
+            If url matches extensions or filenames:
+                downloadables.append({filename, link})
+    Return downloadables
+```
+
+#### (b) Directory Structure Generator – Site Structure Generation
+
+```text
+Function GenerateOrgSite(zip_files)
+    org_sites ← []
+    For each zip_file in zip_files:
+        base_path ← replace_extension(zip_file.link, '')
+        dataset_path ← replace_substring(base_path, 'zip', 'datasets')
+        org_sites.append(dataset_path + '/')
+        For level in ['L1','L2','L3','L4']:
+            org_sites.append(dataset_path + '/ambient/' + level + '/')
+    Return org_sites
+```
+
+#### (c) File Download Manager – Robust File Download
+
+```text
+Function DownloadFiles(file_list, download_location, org_site)
+    For each file_info in file_list:
+        file_url ← file_info['link']
+        full_path ← join(download_location, relative_path)
+        If not exists(full_path):
+            create_directories(dirname(full_path))
+            stream_download(file_url, full_path)
+            log_success(filename)
+        Else:
+            log_skip(filename)
+```
+
+### 2.4 Data Structures and Output
+
+This module produces an organized directory structure containing:
+
+* **Stereo Images:** `im0.png`, `im1.png`
+* **Disparity Maps:** `disp0.pfm`, `disp1.pfm`
+* **Calibration Files:** `calib.txt`
+* **Exposure Variants:** Multiple illumination conditions per scene
+
+---
+
+## 3. Module 2: Data Preprocessing System
+
+### 3.1 Purpose and Scope
+
+Transforms raw downloaded data into standardized, cleaned formats suitable for machine learning. Handles file parsing, image processing, data augmentation, and serialization.
+
+### 3.2 Core Processing Pipeline
+
+```text
+Procedure PreprocessData(raw_path, output_path, resize_factor)
+    calibration_data ← ProcessAllCalibrations(raw_path)
+    image_data ← ProcessAllImages(raw_path, resize_factor)
+    disparity_data ← ProcessAllDisparities(raw_path, resize_factor)
+    SerializeData(calibration_data, image_data, disparity_data, output_path)
+```
+
+### 3.3 Component Algorithms
+
+#### (a) Calibration Parser
+
+```text
+Function LoadCalibration(file_path)
+    calib ← {}
+    For each line in file:
+        If line contains '=':
+            Parse key, value
+            If value is matrix: parse as array
+            Else: convert to int/float
+    Return calib
+```
+
+#### (b) Disparity Map Processor
+
+```text
+Function LoadPFMDisparity(file_path)
+    Parse header, width, height, scale
+    data ← read binary floats
+    disparity ← reshape(data)
+    disparity ← flip vertically
+    Return CleanDisparity(disparity)
+```
+
+#### (c) Disparity Cleaning Algorithm
+
+```text
+Function CleanArray(arr, max_disp)
+    result ← where(arr < 0, 0, arr)
+    Replace inf with max_val
+    Normalize if max_val > max_disp
+    Return result as int16
+```
+
+#### (d) Image Processing Pipeline
+
+```text
+Function ProcessImage(image_path, resize_factor)
+    rgb_array ← load RGB image
+    gray_array ← convert to grayscale
+    Resize if needed
+    Return uint8 array
+```
+
+#### (e) Data Augmentation through Flipping
+
+```text
+Procedure GenerateAugmentedData(images, disparities)
+    For each original image pair:
+        AddOriginal()
+        AddFlipped()
+```
+
+---
+
+## 4. Module 3: Patch Generation and Feature Extraction
+
+### 4.1 Purpose and Scope
+
+Generates training samples by extracting image patches and computing feature descriptors. Creates corresponding patch-strip pairs across the disparity range with feature validation.
+
+### 4.2 Core Generation Algorithm
+
+```text
+Procedure GeneratePatchesStrips(output_path, patch_shape, target_samples, params)
+    For i in 0..target_samples:
+        FindValidPatch()
+        If valid:
+            ExtractPatchStripPair()
+            ComputeAndStoreFeatures()
+```
+
+### 4.3 Patch Sampling Algorithm
+
+```text
+Function FindValidPatch(sample_index, patch_shape, params)
+    Repeat until valid or max_tries:
+        SampleRandomLocation()
+        If ValidatePatch(): return patch_location
+    Return None
+```
+
+### 4.4 Feature Extraction System
+
+```text
+Function ComputeFeatures(patch)
+    mean_val ← mean(patch)
+    std_val ← std(patch)/0.5
+    skew_val ← normalized skewness
+    dct_mean ← mean(abs(DCT(patch)))
+    entropy ← -Σ p*log2(p)
+    sobel_x, sobel_y ← mean gradients normalized
+    Return [mean_val, std_val, skew_val, dct_mean, entropy, sobel_x, sobel_y]
+```
+
+### 4.5 Feature Validation System
+
+```text
+Function FeatureError(feat1, feat2)
+    diff ← abs(feat1 - feat2)
+    Return any(diff > thresholds)
+```
+
+### 4.6 Strip Extraction Algorithm
+
+```text
+Function ExtractStrip(right_image, patch_coords, disparity_range, params)
+    For d in disparities:
+        x_start ← shift by disparity
+        strip[d] ← cropped region
+        features[d] ← ComputeFeatures(strip[d])
+    Return strip, features
+```
+
+---
+
+## 5. Module 4: Neural Network Training System
+
+### 5.1 Purpose and Scope
+
+Implements and trains a **siamese neural network** for disparity estimation using generated patches and features. Handles model definition, training, and evaluation.
+
+### 5.2 Model Architecture Definition
+
+```text
+Function CreateStereoModel(patch_shape, feature_dim, max_d)
+    Define left and right inputs
+    Left branch: Conv2D → Dense
+    Right branch: TimeDistributed encoder
+    Compute cosine similarity → Softmax
+    Return Model(inputs, outputs)
+```
+
+### 5.3 Custom Layers
+
+#### (a) Similarity Layer
+
+Computes cosine similarity between left and right embeddings with masking.
+
+```text
+Class SimilarityLayer(Layer)
+    Call(inputs):
+        Normalize embeddings
+        similarity ← dot(E_left, E_right)
+        Apply mask
+        Return similarity / 0.1
+```
+
+#### (b) Clip Layer
+
+Ensures numerical stability.
+
+```text
+Class ClipLayer(Layer)
+    Call(inputs):
+        Return clip(inputs, 1e-7, 1.0)
+```
+
+### 5.4 Data Generator Implementation
+
+Efficiently loads training batches from memory-mapped arrays.
+
+```text
+Class StereoBatchGenerator(Sequence)
+    __getitem__(index):
+        Load patches, features, masks
+        Subsample disparities if needed
+        Return model_inputs, labels
+    on_epoch_end():
+        Shuffle indices
+```

@@ -1,5 +1,4 @@
 \documentclass[12pt]{article}
-\usepackage{multicol}
 \usepackage[utf8]{inputenc}
 \usepackage{graphicx}
 \usepackage{hyperref}
@@ -11,273 +10,703 @@
 \usepackage{xcolor}
 \usepackage{geometry}
 \usepackage{parskip}
-\usepackage{graphicx} 
 \usepackage{caption}  
-\usepackage{lipsum} 
-\usepackage{titlesec}
+\usepackage{booktabs}
+\usepackage{subcaption}
+\usepackage{multirow}
+\usepackage{float}
+\usepackage{enumitem}
 
-\usepackage{xcolor}
-\pagecolor[rgb]{0.1,0.1,0.1}
-\color[rgb]{0.9,0.9,0.9}
-
-\titlespacing*{\section}{0pt}{1ex}{0.5ex}      % {left}{before}{after}[right]
-\titlespacing*{\subsection}{0pt}{0.5ex}{0.25ex}  % Smaller gaps for subsections
-
-
+% Page formatting
 \geometry{a4paper, margin=1in}
+\setlength{\parskip}{0.8em}
 
-\title{Stereo Depth Reconstruction}
-\author{Anurag Gupta}
+\title{Comprehensive Technical Report: Stereo Matching Pipeline System Architecture}
+\author{Blaze}
 \date{\today}
 
 \begin{document}
 
 \maketitle
 
-\begin{multicols}{2}
+\begin{abstract}
+This technical document provides a comprehensive description of a stereo matching pipeline system architecture. The system implements a complete workflow from web-based data acquisition to trained neural network models for disparity estimation. The pipeline is organized into four modular components with well-defined interfaces and data flow. Each module handles specific responsibilities including data collection, preprocessing, feature extraction, and model training.
+\end{abstract}
 
-\section{Theory}
+\section{System Architecture Overview}
 
+The stereo matching pipeline is designed as a sequential processing system with four interconnected modules. The architecture follows a data-flow pattern where each module consumes the output of the previous module and produces input for the next.
 
-For stereo vision we need two pictures taken side by side and the camera details. This will helps us estimate the depth of the surfaces in the image.
-First we caclculate how much a pixel has shifted from the first picture to the second picture. This will help us identify the shift of pixels 
-with relation to other pixels. Thus giving us a map called the disparity map which is just the array of pixel shifts. From the calibration data of 
-the cameras we can get some information that will estimate the metric depth of a surface thus allowing us to create a 3D object.
+\section{Module 1: Data Acquisition System}
 
-The  relationship between disparity ($d$) and depth ($Z$) is defined as follows:
+\subsection{Module Purpose and Scope}
+The data acquisition module is responsible for automatically retrieving the Middlebury 2014 stereo dataset from the official web repository. It handles web scraping, file discovery, directory structure generation, and robust download management.
 
-\begin{equation}
-Z = \frac{f \cdot B}{d + d_{offs}}
-\end{equation}
+\subsection{Core Algorithm Implementation}
 
-where:
-\begin{itemize}
-    \item $f$: Focal length in pixels 
-    \item $B$: Baseline distance between cameras 
-    \item $d_{offs}$: Disparity offset 
+\begin{algorithm}[H]
+\caption{Data Acquisition Main Workflow}
+\begin{algorithmic}[1]
+\Procedure{AcquireDataset}{base\_url, download\_path}
+\State Initialize web session with browser headers
+\State \Call{ScanForZipFiles}{base\_url} \Comment{Find dataset containers}
+\State \Call{FilterDatasets}{file\_list, exclude\_keywords} \Comment{Remove imperfect datasets}
+\State \Call{GenerateSiteStructure}{dataset\_list} \Comment{Create directory hierarchy}
+\State \For{each dataset in dataset\_list}
+    \State \Call{DownloadCoreFiles}{dataset\_url, download\_path}
+    \State \Call{DownloadExposureVariants}{dataset\_url, download\_path}
+\EndFor
+\State \Return \Call{VerifyDownloads}{download\_path}
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Key Component Details}
+
+\subsubsection{Web Scraping Engine}
+\begin{algorithm}[H]
+\caption{File Discovery Algorithm}
+\begin{algorithmic}[1]
+\Function{FindDownloadables}{url, extensions, filenames}
+\State response $\gets$ HTTP\_GET(url) with custom headers
+\State soup $\gets$ BeautifulSoup(response.content)
+\State downloadables $\gets$ []
+\State \For{each anchor tag in soup}
+    \State href $\gets$ extract href attribute
+    \State \If{href is valid and not javascript}
+        \State absolute\_url $\gets$ urljoin(base\_url, href)
+        \State \If{url matches extensions or filenames}
+            \State downloadables.append(\{
+                \State \quad 'filename': extract\_filename(href),
+                \State \quad 'link': absolute\_url
+            \State \})
+        \EndIf
+    \EndIf
+\EndFor
+\State \Return downloadables
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Directory Structure Generator}
+\begin{algorithm}[H]
+\caption{Site Structure Generation}
+\begin{algorithmic}[1]
+\Function{GenerateOrgSite}{zip\_files}
+\State org\_sites $\gets$ []
+\State \For{each zip\_file in zip\_files}
+    \State base\_path $\gets$ replace\_extension(zip\_file.link, '')
+    \State dataset\_path $\gets$ replace\_substring(base\_path, 'zip', 'datasets')
+    \State org\_sites.append(dataset\_path + '/')
+    \State \For{level in ['L1', 'L2', 'L3', 'L4']}
+        \State org\_sites.append(dataset\_path + '/ambient/' + level + '/')
+    \EndFor
+\EndFor
+\State \Return org\_sites
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{File Download Manager}
+\begin{algorithm}[H]
+\caption{Robust File Download}
+\begin{algorithmic}[1]
+\Function{DownloadFiles}{file\_list, download\_location, org\_site}
+\State \For{each file\_info in file\_list}
+    \State file\_url $\gets$ file\_info['link']
+    \State relative\_path $\gets$ extract\_relative\_path(file\_url, org\_site)
+    \State full\_path $\gets$ os.path.join(download\_location, relative\_path)
+    \State \If{not file\_exists(full\_path)}
+        \State create\_directories(os.path.dirname(full\_path))
+        \State stream\_download(file\_url, full\_path)
+        \State log\_success(file\_info['filename'])
+    \Else
+        \State log\_skip(file\_info['filename'])
+    \EndIf
+\EndFor
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Data Structures and Output}
+
+The module produces a organized directory structure containing:
+\begin{itemize}[leftmargin=*]
+\item \textbf{Stereo Images}: \texttt{im0.png}, \texttt{im1.png} (left/right pairs)
+\item \textbf{Disparity Maps}: \texttt{disp0.pfm}, \texttt{disp1.pfm} (floating-point format)
+\item \textbf{Calibration Files}: \texttt{calib.txt} (camera parameters)
+\item \textbf{Exposure Variants}: Multiple illumination conditions per scene
 \end{itemize}
 
+\section{Module 2: Data Preprocessing System}
 
+\subsection{Module Purpose and Scope}
+Transforms raw downloaded data into standardized, cleaned formats suitable for machine learning. Handles file parsing, image processing, data augmentation, and serialization.
 
-\section{Dataset}
-\bigskip
-We have used the Middlebury 2014 dataset for stero depth images. It includes two images, one taken from the left camera labelled as `im0.png' and one from the right camera labelled
-`im1.png'. There is the ground truth disparity images labelled as `disp0.pfm' and `disp1.pfm' respectively. There is also a file called `calib.txt' which contains the camera information
-like focal length, number of pixels, baseline, disparity offset, etc \ldots
-
-There are 33 image sets out of which 23 have ground truths publicly available and we will be showing some sample outputs using various threshold. Since computation takes a little long 
-for generating disparity over all the images, we will be using 0.5 times the original resolution for sample outputs.
-
-
-\section{Algorithmic Pipeline}
-
-\subsection{Texture Segmentation}
-
-We suggest that pixels with same colour intensity on a 2D imag would make a flat surface in the original 3D environment. This is due to the fact that shading causes intensity to 
-differ based on the depth of the object relative to the source of the light. So we assume that shading is relatively correct in the image and start partitioning the image into 
-multiple segments with colour intensity within a threshold amount from the original starting pixel. 
-
-We use the basic BFS style finding mechanism also called Flood-Fill algorithm to locate pixels that have valid colour intensity. Overwriting a region by a different segment's 
-continuation is not allowed for computation benefit. The origin pixels are choosen randomly. The top, left, bottom, and right pixels of the original pixel are considered 
-the only valid neighbours while searching. Each region is called a texture. Each texture gets a different number assigned to it and we also maintain a dictionary with the texture numbers
-as key and the list of points masked by that texture as the value.
+\subsection{Core Processing Pipeline}
 
 \begin{algorithm}[H]
-\caption{Flood-Fill (BFS) Texture Segmentation}
+\caption{Data Preprocessing Main Workflow}
 \begin{algorithmic}[1]
-\Require{} Grayscale image $I$, Intensity threshold $\tau$
-\Ensure{}{} Texture labels $T$, Region dictionary $\mathcal{D}$
-
-\State{}{} Initialize $T \gets \mathbf{0}_{h\times w}$, $label \gets 1$
-\For{each pixel $(x,y)$ in randomized order}
-    \If{$T(x,y) = 0$}
-        \State{} $\mathcal{D}[label] \gets \emptyset$
-        \State{} $stack.push((x,y))$
-        \State{} $I_{seed} \gets I(x,y)$
-        \While{$stack \neq \emptyset$}
-            \State{} $(cx,cy) \gets stack.pop()$
-            \If{$|I(cx,cy) - I_{seed}| \leq \tau$}
-                \State{} $T(cx,cy) \gets label$
-                \State{} $\mathcal{D}[label].add((cx,cy))$
-                \For{each neighbor $(nx,ny)$ in 4-connected region}
-                    \If{$T(nx,ny) = 0$} 
-                        \State{} $stack.push((nx,ny))$
-                    \EndIf{}
-                \EndFor{}
-            \EndIf{}
-        \EndWhile{}
-        \State{} $label \gets label + 1$
-    \EndIf{}
-\EndFor{}
+\Procedure{PreprocessData}{raw\_path, output\_path, resize\_factor}
+\State calibration\_data $\gets$ \Call{ProcessAllCalibrations}{raw\_path}
+\State image\_data $\gets$ \Call{ProcessAllImages}{raw\_path, resize\_factor}
+\State disparity\_data $\gets$ \Call{ProcessAllDisparities}{raw\_path, resize\_factor}
+\State \Call{SerializeData}{calibration\_data, image\_data, disparity\_data, output\_path}
+\State \Return file\_paths
+\EndProcedure
 \end{algorithmic}
 \end{algorithm}
 
+\subsection{Component Algorithms}
 
-\subsection{Disparity Estimation}
-
-We use the left iamge as our original image. For every texture we first get the list of points masked by that texture. Using the search distance received as input
-we create a list of masks. Each mask being a k pixels away from the original mask where k ranges from 0 to maximum search distance. We assume that since the picture was
-right side image was taken by a camera from the right side of the original camera it is obvious that the objects in the original image will be found to the left of 
-their original position the right image. 
-
-Using this analogy we search for pixels on the left side within a maximumsearch range. For comparison we say that the least SAD (Sum of Absolute Differences) between the original
-mask on the left image and the shifted mask on the right image would be the best matching texture. So once we have assumed that least SAD means we have found our texture on
-the next image, we take how much shift we needed to get the best matching value and assign that to the disparity matrix. The disparity values is now tightly 
-bound by $disp \in [0, \text{max\_disp}]$ and $disp \in \mathbb{Z}$
-
+\subsubsection{Calibration Parser}
 \begin{algorithm}[H]
-\caption{Texture-Constrained Disparity Search}
+\caption{Calibration File Processing}
 \begin{algorithmic}[1]
-\Require{} Left image $I_l$, Right image $I_r$, Calibration data $\mathcal{C}$
-\Ensure{} Disparity map $D$
-
-\State{} Segment $I_l$ into texture regions $\mathcal{R} = \{R_1 \cdots R_n\}$ via Algorithm 2
-\For{each region $R_i \in \mathcal{R}$}
-    \State{} Extract representative pixel $(x_0,y_0) \in R_i$
-    \For{$d \gets 0$ to $d_{\max}$ (from $\mathcal{C}.ndisp$)}
-        \State{} Compute SAD cost:
-        \State{} $C(d) \gets \sum_{(x,y)\in R_i} |I_l(x,y) - I_r(x-d,y)|$
-        \State{} Track $d^* \gets \arg\min_d C(d)$
-    \EndFor{}
-    \State{} Assign $D(x,y) \gets d^*$ for all $(x,y) \in R_i$
-\EndFor{}
+\Function{LoadCalibration}{file\_path}
+\State calib $\gets$ \{\}
+\State \For{each line in file}
+    \State \If{line contains '='}
+        \State key, value $\gets$ split(line, '=', 1)
+        \State \If{value starts with '[' and ends with ']'}
+            \State matrix\_str $\gets$ value[1:-1]
+            \State rows $\gets$ split(matrix\_str, ';')
+            \State matrix $\gets$ []
+            \State \For{each row in rows}
+                \State matrix.append([float(x) for x in split(row)])
+            \EndFor
+            \State calib[key] $\gets$ np.array(matrix)
+        \Else
+            \State 
+                \State numeric\_value $\gets$ float(value)
+                \State \If{numeric\_value is integer} 
+                    \State calib[key] $\gets$ int(numeric\_value)
+                \Else
+                    \State calib[key] $\gets$ numeric\_value
+                \EndIf
+            
+                \State calib[key] $\gets$ value.strip()
+            
+        \EndIf
+    \EndIf
+\EndFor
+\State \Return calib
+\EndFunction
 \end{algorithmic}
 \end{algorithm}
 
-\textbf{Advantages over correlation:}
-\begin{itemize}
-    \item 3.2$\times$ faster computation 
-    \item Better preservation of texture boundaries
-    \item Natural noise reduction within homogeneous regions
-\end{itemize}
-
-
-\subsection{Post-Processing}
-
-When we estimated the disparity we used very constrained threshold to create as many textures possible but has led to a slightly noisy and very grainy disparity matrix.
-To create a gradient like effect on the disparity matrix we will create texture of higher thresholds. Then take the disparities in that texture mask and compute the median value.
-Then if any value is more that the threshold amound from the median value we replace the out of range value with the median value. The post processing mechanism can be 
-applied multiple times to achieve good results.
-
-
+\subsubsection{Disparity Map Processor}
 \begin{algorithm}[H]
-\caption{Loose Texture based Disparity Refinement}
+\caption{PFM Disparity Map Loading and Cleaning}
 \begin{algorithmic}[1]
-\Require{} Raw disparity $D$, Original image $I$, Iterations $N$
-\Ensure{} Refined disparity $\hat{D}$
-
-\For{$k \gets 1$ to $N$}
-    \State{} Segment $I$ with relaxed threshold ($\tau_k \gets 20 \times k$)
-    \For{each segment $S_j$}
-        \State{} Compute median disparity $\tilde{d}_j \gets \mathrm{median}(D(S_j))$
-        \State{} Reject outliers where $|D(p) - \tilde{d}_j| > 0.07\tilde{d}_j$
-    \EndFor{}
-    \State{} Apply 3$\times$3 median filter to $\hat{D}$
-\EndFor{}
+\Function{LoadPFMDisparity}{file\_path}
+\State Read header: magic\_word, dimensions, scale
+\State width, height $\gets$ parse(dimensions)
+\State scale\_factor $\gets$ parse(scale)
+\State little\_endian $\gets$ (scale\_factor $<$ 0)
+\State \If{little\_endian}
+    \State data $\gets$ np.fromfile(file, dtype='<f4')
+\Else
+    \State data $\gets$ np.fromfile(file, dtype='>f4')
+\EndIf
+\State \If{len(data) = width $\times$ height}
+    \State disparity $\gets$ reshape(data, (height, width))
+\ElsIf{len(data) = width $\times$ height $\times$ 3}
+    \State disparity $\gets$ mean(reshape(data, (height, width, 3)), axis=2)
+\Else
+    \State Raise ValueError
+\EndIf
+\State disparity $\gets$ flipud(disparity) \Comment{Vertical flip}
+\State \Return \Call{CleanDisparity}{disparity}
+\EndFunction
 \end{algorithmic}
 \end{algorithm}
 
+\subsubsection{Disparity Cleaning Algorithm}
+\begin{algorithm}[H]
+\caption{Disparity Map Cleaning and Normalization}
+\begin{algorithmic}[1]
+\Function{CleanArray}{arr, max\_disp}
+\State result $\gets$ where(arr $<$ 0, 0, arr) \Comment{Remove negative values}
+\State finite\_mask $\gets$ isfinite(result)
+\State \If{any(finite\_mask)}
+    \State max\_val $\gets$ max(result[finite\_mask])
+\Else
+    \State max\_val $\gets$ 0
+\EndIf
+\State result $\gets$ where(isinf(result), max\_val, result) \Comment{Replace infinity}
+\State \If{max\_val $>$ max\_disp}
+    \State result $\gets$ (result / max\_val) $\times$ max\_disp \Comment{Normalize}
+\EndIf
+\State \Return result.astype(np.int16)
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
 
-\section{Implementation Details}
+\subsubsection{Image Processing Pipeline}
+\begin{algorithm}[H]
+\caption{Image Loading and Processing}
+\begin{algorithmic}[1]
+\Function{ProcessImage}{image\_path, resize\_factor}
+\State rgb\_array $\gets$ PIL.Image.open(image\_path).convert('RGB')
+\State gray\_array $\gets$ dot(rgb\_array[...,:3], [0.33, 0.33, 0.33])
+\State \If{resize\_factor $\neq$ 1.0}
+    \State gray\_array $\gets$ \Call{ResizeImage}{gray\_array, resize\_factor}
+\EndIf
+\State \Return gray\_array.astype(np.uint8)
+\EndFunction
 
-\subsection{Mesh Generation}
+\Function{ResizeImage}{image\_array, scale\_factor}
+\State \If{image\_array.ndim = 2} \Comment{Grayscale}
+    \State img $\gets$ PIL.Image.fromarray(image\_array)
+\Else \Comment{Color}
+    \State img $\gets$ PIL.Image.fromarray(image\_array.astype('uint8'))
+\EndIf
+\State new\_size $\gets$ (int(width $\times$ scale\_factor), int(height $\times$ scale\_factor))
+\State resized $\gets$ img.resize(new\_size, PIL.Image.LANCZOS)
+\State \Return np.array(resized)
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
 
-We are also given the camera details in the dataset and thus we can use formula (1) to generate the depth of each pixel with respect to their disparity values. This will create a point
-cloud of points in 3D. Given the computed 3D point cloud $\mathcal{P} = \{\mathbf{p}_i\} {i=1}^N$ where $\mathbf{p}_i = (x_i, y_i, z_i, r_i, g_i, b_i)$, we initiate the mesh reconstruction.
-For every vertexx we compute the distance between it and its neighbours, if the distance falls within a given threshold we create a triangle face between them. For colouring the faces
-we use the average colour of the corresponding vertices loaded from the original rgb file of the image.
-
+\subsection{Data Augmentation Strategy}
 
 \begin{algorithm}[H]
-\caption{Point Cloud to Mesh Conversion}
+\caption{Data Augmentation through Flipping}
 \begin{algorithmic}[1]
-\Require{} Point cloud $\mathcal{P}$, distance threshold $\tau$
-\Ensure{} 3D mesh $\mathcal{M}(V,F)$ with vertices $V$ and faces $F$
+\Procedure{GenerateAugmentedData}{images, disparities}
+\State augmented\_images $\gets$ \{'org': [], 'flip': []\}
+\State augmented\_disparities $\gets$ \{'org': [], 'flip': []\}
+\State \For{each original image pair}
+    \State \Call{AddOriginal}{augmented\_images, augmented\_disparities}
+    \State \Call{AddFlipped}{augmented\_images, augmented\_disparities}
+\EndFor
+\State \Return augmented\_images, augmented\_disparities
+\EndProcedure
 
-\State{} Deduplicate points: $V \gets \{\mathbf{v}_k\} \subseteq \mathcal{P}$ where $\|\mathbf{v}_k - \mathbf{v}_l\| > \epsilon$
-\State{} Construct 2D grid topology: $(h,w) \gets \text{infer\_grid\_dimensions}(V)$
-\State{} Initialize face set: $F \gets \emptyset$
+\Function{AddFlipped}{images, disparities, original\_idx}
+\State left\_flipped $\gets$ fliplr(original\_right)
+\State right\_flipped $\gets$ fliplr(original\_left)
+\State disp\_left\_flipped $\gets$ fliplr(original\_disp\_right)  
+\State disp\_right\_flipped $\gets$ fliplr(original\_disp\_left)
+\State Store flipped pairs with original index
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
 
-\For{each grid cell $(i,j)$}
-    \State{} Define candidate vertices:
-    \State{} $\quad v_1 \gets V[i,j],\ v_2 \gets V[i,j+1],\ v_3 \gets V[i+1,j],\ v_4 \gets V[i+1,j+1]$
+\section{Module 3: Patch Generation and Feature Extraction}
+
+\subsection{Module Purpose and Scope}
+Generates training samples by extracting image patches and computing feature descriptors. Creates corresponding patch-strip pairs across the entire disparity range with feature-based validation.
+
+\subsection{Core Generation Algorithm}
+
+\begin{algorithm}[H]
+\caption{Patch Generation Main Workflow}
+\begin{algorithmic}[1]
+\Procedure{GeneratePatchesStrips}{output\_path, patch\_shape, target\_samples, params}
+\State Initialize memory-mapped arrays for all data types
+\State pbar $\gets$ tqdm(total=target\_samples)
+\State \For{i = 0 to target\_samples-1}
+    \State \Call{FindValidPatch}{i, patch\_shape, params}
+    \State \If{found valid patch}
+        \State \Call{ExtractPatchStripPair}{i, patch\_location, params}
+        \State \Call{ComputeAndStoreFeatures}{i}
+    \Else
+        \State \Call{HandleFailedPatch}{i}
+    \EndIf
+    \State \If{i mod flush\_interval = 0}
+        \State \Call{FlushArrays}{}
+    \EndIf
+\EndFor
+\State \Call{FinalFlush}{}
+\State \Return array\_paths
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Patch Sampling Algorithm}
+
+\begin{algorithm}[H]
+\caption{Random Patch Sampling with Validation}
+\begin{algorithmic}[1]
+\Function{FindValidPatch}{sample\_index, patch\_shape, params}
+\State tries $\gets$ 0
+\State \While{tries $<$ max\_tries and not found}
+    \State side $\gets$ random.choice(['org', 'flip'])
+    \State truth\_data $\gets$ random.choice(truth\_data[side])
+    \State image\_data $\gets$ random.choice(image\_data[side][truth\_data.index])
+    \State \Call{SampleRandomLocation}{image\_data, patch\_shape, params}
+    \State truth\_disp $\gets$ median(disp\_patch)
+    \State \If{min\_disp $\leq$ truth\_disp $<$ max\_disp}
+        \State \If{\Call{ValidatePatch}{image\_patch, truth\_disp, params}}
+            \State \Return (patch\_location, truth\_disp, image\_data)
+        \EndIf
+    \EndIf
+    \State tries $\gets$ tries + 1
+\EndWhile
+\State \Return None \Comment{No valid patch found}
+\EndFunction
+
+\Function{SampleRandomLocation}{image\_data, patch\_shape, params}
+\State img\_height, img\_width $\gets$ image\_data.disparity.shape
+\State y\_min $\gets$ random.randint(0, img\_height - patch\_shape[0])
+\State x\_min $\gets$ random.randint(params.max\_disp, img\_width - patch\_shape[1])
+\State y\_max $\gets$ y\_min + patch\_shape[0]
+\State x\_max $\gets$ x\_min + patch\_shape[1]
+\State \Return (y\_min, y\_max, x\_min, x\_max)
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Feature Extraction System}
+
+\begin{algorithm}[H]
+\caption{Comprehensive Feature Computation}
+\begin{algorithmic}[1]
+\Function{ComputeFeatures}{patch, eps=1e-6}
+\State patch $\gets$ patch.astype(np.float32)
+\State \Comment{1. Statistical Moments}
+\State mean\_val $\gets$ mean(patch)
+\State std\_val $\gets$ std(patch) / 0.5 \Comment{Normalize to ~[0,1]}
+\State skew\_val $\gets$ mean(((patch - mean\_val) / (std(patch) + eps))$^3$)
+\State skew\_val $\gets$ (skew\_val + 2) / 4 \Comment{Map to [0,1]}
+
+\State \Comment{2. Frequency Domain Features}
+\State patch\_dct $\gets$ dct(dct(patch.T, norm='ortho').T, norm='ortho')
+\State dct\_coeffs $\gets$ flatten(patch\_dct[0:5, 0:5])
+\State dct\_mean $\gets$ mean(abs(dct\_coeffs))
+\State dct\_mean $\gets$ clip(dct\_mean / 10.0, 0, 1)
+
+\State \Comment{3. Information Theory Features}
+\State hist $\gets$ histogram(patch, bins=256, range=(0, 1))
+\State p $\gets$ hist / (sum(hist) + eps)
+\State entropy $\gets$ -sum(p $\times$ log2(p + eps)) / 8.0
+
+\State \Comment{4. Gradient Features}
+\State gx $\gets$ Sobel(patch, CV\_32F, 1, 0, ksize=3)
+\State gy $\gets$ Sobel(patch, CV\_32F, 0, 1, ksize=3)
+\State sobel\_x $\gets$ (mean(gx) + 1) / 2 \Comment{Map [-1,1]→[0,1]}
+\State sobel\_y $\gets$ (mean(gy) + 1) / 2
+
+\State features $\gets$ [mean\_val, std\_val, skew\_val, dct\_mean, entropy, sobel\_x, sobel\_y]
+\State \Return clip(features, 0.0, 1.0)
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Feature Validation System}
+
+\begin{algorithm}[H]
+\caption{Patch-Strip Correspondence Validation}
+\begin{algorithmic}[1]
+\Function{FeatureError}{feat1, feat2}
+\State diff $\gets$ abs(feat1 - feat2)
+\State threshold\_violations $\gets$ [
+    \State diff[0] $>$ 0.03, \Comment{Mean intensity}
+    \State diff[1] $>$ 0.05, \Comment{Standard deviation}
+    \State diff[2] $>$ 0.08, \Comment{Skewness}
+    \State diff[3] $>$ 0.06, \Comment{DCT mean}
+    \State diff[4] $>$ 0.05, \Comment{Entropy}
+    \State diff[5] $>$ 0.06, \Comment{Sobel X}
+    \State diff[6] $>$ 0.06  \Comment{Sobel Y}
+\State ]
+\State \Return any(threshold\_violations)
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Strip Extraction Algorithm}
+
+\begin{algorithm}[H]
+\caption{Right Image Strip Generation}
+\begin{algorithmic}[1]
+\Function{ExtractStrip}{right\_image, patch\_coords, disparity\_range, params}
+\State y\_min, y\_max, x\_min, x\_max $\gets$ patch\_coords
+\State strip $\gets$ empty((num\_disparities, patch\_h, patch\_w), float16)
+\State features $\gets$ empty((num\_disparities, feat\_dim), float16)
+\State \For{d $\gets$ 0 to num\_disparities-1}
+    \State actual\_disp $\gets$ d $\times$ (params.disp\_skip + 1) + params.min\_disp
+    \State x\_start $\gets$ x\_min - actual\_disp
+    \State x\_end $\gets$ x\_max - actual\_disp
+    \State strip[d] $\gets$ right\_image[y\_min:y\_max, x\_start:x\_end]
+    \State features[d] $\gets$ \Call{ComputeFeatures}{strip[d]}
+\EndFor
+\State \Return strip, features
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\section{Module 4: Neural Network Training System}
+
+\subsection{Module Purpose and Scope}
+Implements and trains a siamese neural network architecture for disparity estimation using the generated patches and precomputed features. Handles model definition, training pipeline, and evaluation.
+
+\subsection{Model Architecture Definition}
+
+\begin{algorithm}[H]
+\caption{Stereo Matching Model Construction}
+\begin{algorithmic}[1]
+\Function{CreateStereoModel}{patch\_shape, feature\_dim, max\_d}
+\State \Comment{Input Definitions}
+\State left\_patch\_input $\gets$ Input(shape=(*patch\_shape, 1))
+\State right\_patch\_input $\gets$ Input(shape=(max\_d, *patch\_shape, 1))
+\State left\_feat\_input $\gets$ Input(shape=(feature\_dim,))
+\State right\_feat\_input $\gets$ Input(shape=(max\_d, feature\_dim))
+\State mask\_input $\gets$ Input(shape=(max\_d,))
+
+\State \Comment{Left Image Processing Branch}
+\State x $\gets$ Conv2D(32, 3, activation='relu', padding='same')(left\_patch\_input)
+\State x $\gets$ Conv2D(64, 3, activation='relu', padding='same')(x)
+\State x $\gets$ GlobalAveragePooling2D()(x)
+\State left\_patch\_emb $\gets$ Dense(128, activation='relu')(x)
+
+\State \Comment{Left Feature Processing}
+\State left\_feat\_dense $\gets$ Dense(32, activation='relu')(
+    \State \quad LayerNormalization()(left\_feat\_input))
+\State E\_left $\gets$ Concatenate()([left\_patch\_emb, left\_feat\_dense])
+
+\State \Comment{Right Image Processing (Time Distributed)}
+\State right\_encoder $\gets$ \Call{BuildPatchEncoder}{patch\_shape}
+\State right\_patch\_emb $\gets$ TimeDistributed(right\_encoder)(right\_patch\_input)
+
+\State \Comment{Right Feature Processing}
+\State right\_feat\_dense $\gets$ TimeDistributed(
+    \State \quad Dense(32, activation='relu'))(LayerNormalization()(right\_feat\_input))
+\State E\_right $\gets$ Concatenate(axis=-1)([right\_patch\_emb, right\_feat\_dense])
+
+\State \Comment{Similarity Computation}
+\State sim\_layer $\gets$ SimilarityLayer(max\_d)
+\State sim\_masked $\gets$ sim\_layer([E\_left, E\_right, mask\_input])
+\State out\_prob $\gets$ Softmax(axis=-1)(sim\_masked)
+\State out\_prob $\gets$ ClipLayer()(out\_prob) \Comment{Ensure numerical stability}
+
+\State \Return Model(inputs=[left\_patch\_input, right\_patch\_input, 
+    \State \quad left\_feat\_input, right\_feat\_input, mask\_input], outputs=out\_prob)
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Custom Layer Implementations}
+
+\subsubsection{Similarity Layer}
+The Similarity Layer computes cosine similarity between left patch embeddings and right strip embeddings, with masking for invalid disparities.
+
+\begin{algorithm}[H]
+\caption{Similarity Layer Implementation}
+\begin{algorithmic}[1]
+\State \textbf{Class:} SimilarityLayer
+\State \textbf{Inherits:} Layer
+\State \textbf{Instance Variables:} max\_d \Comment{Maximum number of disparities}
+
+\Procedure{Constructor}{max\_d}
+    \State \Call{Super.Constructor}{}
+    \State self.max\_d $\gets$ max\_d
+\EndProcedure
+
+\Procedure{Call}{inputs}
+    \State E\_left, E\_right, mask $\gets$ inputs \Comment{Unpack three input tensors}
+    \State mask $\gets$ \Call{cast}{mask, bool} \Comment{Convert mask to boolean}
     
-    \If{all pairwise distances $d(v_a,v_b) < \tau$}
-        \State{} Add triangle $F \gets F \cup \{(v_1,v_2,v_3)\}$
-        \State{} Add triangle $F \gets F \cup \{(v_2,v_4,v_3)\}$
-    \EndIf{}
-\EndFor{}
-
-\State{} Compute vertex normals: $\mathbf{n}_k \gets \frac{1}{|N(k)|}\sum_{j\in N(k)}(\mathbf{v}_j - \mathbf{v}_k)$
-\State{} Export $\mathcal{M}(V,F)$ as PLY file with vertex colors
+    \State \Comment{Expand left embedding from (batch, features) to (batch, max\_d, features)}
+    \State E\_left\_expanded $\gets$ \Call{expand\_dims}{E\_left, 1} \Comment{Add disparity dimension}
+    \State E\_left\_expanded $\gets$ \Call{tile}{E\_left\_expanded, [1, self.max\_d, 1]}
+    
+    \State \Comment{Compute cosine similarity}
+    \State E\_left\_normalized $\gets$ \Call{l2\_normalize}{E\_left\_expanded, axis=-1}
+    \State E\_right\_normalized $\gets$ \Call{l2\_normalize}{E\_right, axis=-1}
+    \State similarity $\gets$ \Call{reduce\_sum}{E\_left\_normalized $\times$ E\_right\_normalized, axis=-1}
+    
+    \State \Comment{Apply mask: set invalid disparities to large negative value}
+    \State large\_negative $\gets$ \Call{constant}{-1e9}
+    \State similarity\_masked $\gets$ \Call{where}{mask, similarity, large\_negative}
+    
+    \State \Comment{Apply temperature scaling for softer probability distribution}
+    \State \Return similarity\_masked / 0.1
+\EndProcedure
 \end{algorithmic}
 \end{algorithm}
 
+\subsubsection{Clip Layer}
+The Clip Layer ensures numerical stability by constraining probability values to a valid range, preventing underflow in subsequent operations.
 
-The Open3D library handles the final mesh export in binary PLY format, combining:
-\begin{equation}
-    \mathcal{M} = \underbrace{\{\mathbf{v}_i\}}_{V} \cup \underbrace{\{(r_i,g_i,b_i)\}}_{\text{colors}} \cup \underbrace{\{(i,j,k)\}}_{F}
-\end{equation}
+\begin{algorithm}[H]
+\caption{Clip Layer Implementation}
+\begin{algorithmic}[1]
+\State \textbf{Class:} ClipLayer
+\State \textbf{Inherits:} Layer
 
-\subsection{Parameters}
+\Procedure{Call}{inputs}
+    \State \Comment{Clip values to prevent numerical instability in probabilities}
+    \State clipped $\gets$ \Call{clip\_by\_value}{inputs, 1e-7, 1.0}
+    \State \Return clipped
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
 
-\begin{table}[h]
-\centering
-\begin{tabular}{|l|l|l|}
-\hline
-\textbf{Threshold} & \textbf{Value} & \textbf{Rationale} \\ \hline
-Initial Texture & 20 & Balances detai \\ \hline
-Post-Process & 100 & Gradient Disparity \\ \hline
-Post-process & 4 & Observed Best \\ \hline
-Mesh Face & 150px & PPoint Generation \\ \hline
-\end{tabular}
-\end{table}
+\subsection{Data Generator Implementation}
+The StereoBatchGenerator efficiently loads training data from memory-mapped arrays, handling disparity skipping and proper batching for the neural network.
 
+\begin{algorithm}[H]
+\caption{Stereo Batch Generator}
+\begin{algorithmic}[1]
+\State \textbf{Class:} StereoBatchGenerator
+\State \textbf{Inherits:} Sequence \Comment{Keras Sequence base class}
 
-\section{Conclusion}
+\Procedure{Constructor}{parameters}
+    \State self.left\_patches $\gets$ left\_memmap \Comment{Memory-mapped left image patches}
+    \State self.right\_strips $\gets$ right\_memmap \Comment{Memory-mapped right image strips}
+    \State self.left\_features $\gets$ left\_feat \Comment{Precomputed left patch features}
+    \State self.right\_features $\gets$ right\_feat \Comment{Precomputed right strip features}
+    \State self.mask $\gets$ disp\_mask \Comment{Validity mask for disparities}
+    \State self.disparities $\gets$ disp\_memmap \Comment{Ground truth disparities}
+    \State self.batch\_size $\gets$ batch\_size
+    \State self.disparity\_skip $\gets$ disp\_skip \Comment{Disparity sampling interval}
+    \State self.indices $\gets$ \Call{arange}{len(left\_memmap)} \Comment{All available indices}
+    \State self.shuffle $\gets$ shuffle
+    \State \Call{on\_epoch\_end}{} \Comment{Initial shuffle if enabled}
+\EndProcedure
 
-The proposed pipeline demonstrates that texture-constrained disparity estimation combined with constrained texture post-processing yields superior results compared to traditional methods
-like comparing pixel by pixel. The most importat part is matching object from the left image to the right image perfectly. This algorithm's assumption of similar colours seems to be
-on the right path.
+\Function{\_\_len\_\_}{}
+    \State \Return \Call{ceil}{len(self.indices) / self.batch\_size} \Comment{Number of batches}
+\EndFunction
 
-Future work could explore:
+\Procedure{\_\_getitem\_\_}{batch\_index}
+    \State \Comment{Calculate indices for this batch}
+    \State start\_idx $\gets$ batch\_index $\times$ self.batch\_size
+    \State end\_idx $\gets$ (batch\_index + 1) $\times$ self.batch\_size
+    \State batch\_indices $\gets$ self.indices[start\_idx:end\_idx]
+    
+    \State \Comment{Load and preprocess left patches}
+    \State left\_patches $\gets$ self.left\_patches[batch\_indices]
+    \State left\_patches $\gets$ \Call{expand\_dims}{left\_patches, -1} \Comment{Add channel dimension}
+    \State left\_patches $\gets$ left\_patches.\Call{astype}{float32} \Comment{Ensure correct dtype}
+    
+    \State \Comment{Load and preprocess right strips}
+    \State right\_strips $\gets$ self.right\_strips[batch\_indices]
+    \State right\_strips $\gets$ \Call{expand\_dims}{right\_strips, -1}
+    \State right\_strips $\gets$ right\_strips.\Call{astype}{float32}
+    
+    \State \Comment{Apply disparity skipping if configured}
+    \If{self.disparity\_skip $>$ 0}
+        \State step $\gets$ self.disparity\_skip + 1
+        \State right\_strips $\gets$ right\_strips[:, ::step, :, :, :] \Comment{Subsample disparities}
+        \State strip\_features $\gets$ self.right\_features[batch\_indices, ::step, :]
+        \State strip\_mask $\gets$ self.mask[batch\_indices, ::step]
+    \Else
+        \State strip\_features $\gets$ self.right\_features[batch\_indices]
+        \State strip\_mask $\gets$ self.mask[batch\_indices]
+    \EndIf
+    
+    \State strip\_features $\gets$ strip\_features.\Call{astype}{float32}
+    \State patch\_features $\gets$ self.left\_features[batch\_indices].\Call{astype}{float32}
+    
+    \State \Comment{Adjust ground truth disparities for skipping}
+    \State disparity\_labels $\gets$ (self.disparities[batch\_indices] // (self.disparity\_skip + 1))
+    \State disparity\_labels $\gets$ disparity\_labels.\Call{astype}{int32}
+    
+    \State \Comment{Package inputs and targets for the model}
+    \State model\_inputs $\gets$ (left\_patches, right\_strips, patch\_features, strip\_features, strip\_mask)
+    \State \Return model\_inputs, disparity\_labels
+\EndProcedure
 
-\begin{itemize}
-    \item GPU acceleration for real-time performance on disparity matrix calculation
-    \item Texture segmentation over RGB data instead of gray image
-    \item Deep learning-based texture segmentation
-    \item Adaptive thresholding schemes during post-processing
-\end{itemize}
+\Procedure{on\_epoch\_end}{}
+    \If{self.shuffle}
+        \State \Call{shuffle}{self.indices} \Comment{Randomize order for next epoch}
+    \EndIf
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}
 
-\end{multicols}
+\subsection{Training Pipeline}
 
-\newpage
-% \section{Sample Output}
+\begin{algorithm}[H]
+\caption{Complete Training Workflow}
+\begin{algorithmic}[1]
+\Procedure{TrainStereoModel}{model, train\_gen, val\_gen, epochs, lr, k, class\_weights}
+\State \Comment{Custom Evaluation Metric}
+\State off\_by\_k\_metric $\gets$ \Call{CreateOffByKMetric}{k}
 
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.74\textwidth]{storage.png} % Adjust width and filename
-    \caption*{Storage} % Optional caption
-\end{figure}
-\vspace{3cm}
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.74\textwidth]{shelves.png} % Adjust width and filename
-    \caption*{Shelves} % Optional caption
-\end{figure}
+\State \Comment{Training Callbacks}
+\State early\_stop $\gets$ EarlyStopping(monitor='val\_metric', patience=20, mode='max')
+\State checkpoint $\gets$ ModelCheckpoint(save\_every=5)
 
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.75\textwidth]{recycle.png} % Adjust width and filename
-    \caption*{Recycle} % Optional caption
-\end{figure}
+\State \Comment{Model Compilation}
+\State model.compile(
+    \State \quad optimizer=Adam(learning\_rate=lr),
+    \State \quad loss='sparse\_categorical\_crossentropy',
+    \State \quad metrics=[off\_by\_k\_metric]
+\State )
 
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.75\textwidth]{piano.png} % Adjust width and filename
-    \caption*{Piano} % Optional caption
-\end{figure}
+\State \Comment{Training Execution}
+\State history $\gets$ model.fit(
+    \State \quad train\_gen,
+    \State \quad validation\_data=val\_gen, 
+    \State \quad epochs=epochs,
+    \State \quad class\_weight=class\_weights,
+    \State \quad callbacks=[early\_stop, checkpoint]
+\State )
+\State \Return history
+\EndProcedure
 
+\Function{CreateOffByKMetric}{k}
+\State \Function{Metric}{y\_true, y\_pred}
+    \State pred\_disp $\gets$ argmax(y\_pred, axis=-1, output\_type=int32)
+    \State off\_k $\gets$ abs(pred\_disp - squeeze(y\_true)) $\leq$ k
+    \State \Return reduce\_mean(cast(off\_k, float32))
+\EndFunction
+\State \Return Metric
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
 
+\section{System Configuration and Parameters}
+
+\subsection{Global Configuration}
+
+\begin{verbatim}
+# Dataset Parameters
+dataset_path = "/mnt/Extra/Project_Storage/stereo_ML_dataset/"
+raw_dataset_path = "/mnt/Velocity_Vault/Project_Storage/raw_dataset/"
+
+# Image Processing
+resize_fraction = 1.0
+resize_factor = 1.0 / resize_fraction
+patch_shape = (16, 16)
+
+# Disparity Range
+minimum_disparity = 35
+maximum_disparity = 235
+disparity_skip = 1
+effective_max_disp = (maximum_disparity - minimum_disparity) // (disparity_skip + 1)
+
+# Feature Parameters
+feature_dimension = 7
+
+# Training Parameters
+batch_size = 32
+epochs = 500
+learning_rate = 1e-3
+training_samples = 2**18  # 262,144
+validation_split = 0.1
+
+# Generation Parameters
+maximum_tries = 1000000
+flush_interval = 10000
+\end{verbatim}
+
+\section{Data Flow and Module Integration}
+
+The complete system operates through sequential data transformation:
+
+\begin{enumerate}
+\item \textbf{Raw Web Data → Organized Files}: Data acquisition downloads and structures dataset
+\item \textbf{Organized Files → Processed Data}: Preprocessing converts to standardized formats
+\item \textbf{Processed Data → Training Samples}: Patch generation creates feature-rich samples  
+\item \textbf{Training Samples → Trained Model}: Neural network learns disparity estimation
+\end{enumerate}
+
+Each module maintains clear interfaces and can operate independently, enabling modular development and testing.
 
 \end{document}
