@@ -1,13 +1,4 @@
-```text
- ____   __       __     ____   ____ 
-(  _ \ (  )     /__\   (_   ) ( ___)
- ) _ <  )(__   /(__)\   / /_   )__) 
-(____/ (____) (__)(__) (____) (____)
 
-```
-
-
----
 
 # Stereo Depth Reconstruction Pipeline System Architecture
 
